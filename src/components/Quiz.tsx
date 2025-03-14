@@ -92,8 +92,11 @@ const Quiz = ({ quiz, moduleId, submoduleId, onComplete }: QuizProps) => {
           reward: result.reward,
         });
 
-        // Notify parent component
         if (result.success && result.reward) {
+          toast({
+            title: "Quiz completed!",
+            description: `You earned ${result.reward.xp} XP and ${result.reward.tokens} EDU tokens!`,
+          });
           onComplete(true, result.reward);
         } else {
           onComplete(false);
@@ -337,7 +340,7 @@ const Quiz = ({ quiz, moduleId, submoduleId, onComplete }: QuizProps) => {
           exit={{ opacity: 0, x: -20 }}
           transition={{ duration: 0.3 }}
         >
-          {showExplanation ? (
+          {showExplanation && quizSubmitted ? (
             <FlipCard
               frontContent={
                 <div className="h-full flex flex-col">
