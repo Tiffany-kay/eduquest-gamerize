@@ -27,6 +27,7 @@ const App = () => {
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/modules" element={<Modules />} />
               <Route path="/modules/:moduleId" element={<Modules />} />
+              <Route path="/modules/:moduleId/:submoduleId" element={<Modules />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>

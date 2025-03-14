@@ -6,10 +6,10 @@ import { Button } from "@/components/ui/button";
 import { useWallet } from "@/hooks/useWallet";
 import { 
   Module as ModuleType, 
+  Submodule,
   getModules, 
   getModuleById, 
-  getUserProgress, 
-  completeModule 
+  getUserProgress
 } from "@/utils/contractUtils";
 import AnimatedModuleCard from "@/components/AnimatedModuleCard";
 import { useToast } from "@/hooks/use-toast";
@@ -36,6 +36,7 @@ import {
 import ProgressBar from "@/components/ProgressBar";
 import RewardBadge from "@/components/RewardBadge";
 import { motion, AnimatePresence } from "framer-motion";
+import SubmoduleView from "@/components/SubmoduleView";
 
 const Modules = () => {
   const navigate = useNavigate();
@@ -45,6 +46,7 @@ const Modules = () => {
   
   const [modules, setModules] = useState<ModuleType[]>([]);
   const [selectedModule, setSelectedModule] = useState<ModuleType | null>(null);
+  const [selectedSubmodule, setSelectedSubmodule] = useState<Submodule | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("all");
   const [completingModule, setCompletingModule] = useState(false);
@@ -96,12 +98,39 @@ const Modules = () => {
         // If user has already completed modules (from localStorage), mark them as completed
         if (wallet.address) {
           const progress = await getUserProgress(wallet.address);
-          if (progress && progress.completedModules.length > 0) {
-            modulesData.forEach(module => {
-              if (progress.completedModules.includes(module.id)) {
-                module.completed = true;
-              }
-            });
+          if (progress) {
+            // Mark completed modules
+            if (progress.completedModules.length > 0) {
+              modulesData.forEach(module => {
+                if (progress.completedModules.includes(module.id)) {
+                  module.completed = true;
+                }
+              });
+            }
+            
+            // Mark completed submodules
+            if (progress.completedSubmodules.length > 0) {
+              modulesData.forEach(module => {
+                module.submodules.forEach(submodule => {
+                  if (progress.completedSubmodules.includes(submodule.id)) {
+                    submodule.completed = true;
+                  }
+                });
+              });
+            }
+            
+            // Mark completed quizzes
+            if (progress.completedQuizzes.length > 0) {
+              modulesData.forEach(module => {
+                module.submodules.forEach(submodule => {
+                  submodule.quizzes.forEach(quiz => {
+                    if (progress.completedQuizzes.includes(quiz.id)) {
+                      quiz.completed = true;
+                    }
+                  });
+                });
+              });
+            }
           }
         }
         
@@ -136,57 +165,40 @@ const Modules = () => {
     fetchModules();
   }, [moduleId, navigate, toast, wallet.address]);
 
-  // Mark module as completed
-  const handleCompleteModule = async () => {
-    if (!selectedModule || !wallet.address) return;
-    
-    setCompletingModule(true);
-    try {
-      const result = await completeModule(wallet.address, selectedModule.id);
+  // Handle submodule completion
+  const handleSubmoduleComplete = (reward: { xp: number; tokens: number }) => {
+    // Show a toast notification
+    toast({
+      title: "Submodule Completed!",
+      description: `You earned ${reward.xp} XP and ${reward.tokens} EDU tokens.`,
+    });
+
+    // Update the UI to reflect completion
+    if (selectedModule && selectedSubmodule) {
+      // Mark the submodule as completed
+      const updatedModules = [...modules];
+      const moduleIndex = updatedModules.findIndex(m => m.id === selectedModule.id);
       
-      if (result.success) {
-        toast({
-          title: "Module completed!",
-          description: "Congratulations! You've successfully completed this module.",
-        });
-        
-        // Update modules list with the completed module
-        setModules(prevModules => 
-          prevModules.map(module => 
-            module.id === selectedModule.id 
-              ? { ...module, completed: true } 
-              : module
-          )
+      if (moduleIndex !== -1) {
+        const submoduleIndex = updatedModules[moduleIndex].submodules.findIndex(
+          s => s.id === selectedSubmodule.id
         );
         
-        // Update selected module
-        setSelectedModule(prev => prev ? { ...prev, completed: true } : null);
-        
-        // Show reward dialog
-        if (result.reward && result.txHash) {
-          setReward({
-            xp: result.reward.xp,
-            tokens: result.reward.tokens,
-            newBadge: result.reward.newBadge,
-            txHash: result.txHash,
+        if (submoduleIndex !== -1) {
+          updatedModules[moduleIndex].submodules[submoduleIndex].completed = true;
+          
+          // Also update the selectedModule and selectedSubmodule
+          setSelectedModule({
+            ...selectedModule,
+            submodules: selectedModule.submodules.map(s =>
+              s.id === selectedSubmodule.id ? { ...s, completed: true } : s
+            )
           });
-          setShowRewardDialog(true);
+          
+          setSelectedSubmodule({ ...selectedSubmodule, completed: true });
+          setModules(updatedModules);
         }
-      } else {
-        toast({
-          title: "Already completed",
-          description: "You've already completed this module.",
-        });
       }
-    } catch (error) {
-      console.error("Error completing module:", error);
-      toast({
-        title: "Error",
-        description: "Failed to complete the module. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setCompletingModule(false);
     }
   };
 
@@ -201,10 +213,21 @@ const Modules = () => {
     navigate(`/modules/${moduleId}`);
   };
 
+  // Select a submodule to view
+  const handleSubmoduleSelect = (submodule: Submodule) => {
+    setSelectedSubmodule(submodule);
+  };
+
   // Go back to modules list
   const handleBackToModules = () => {
     setSelectedModule(null);
+    setSelectedSubmodule(null);
     navigate("/modules");
+  };
+
+  // Go back to module from submodule
+  const handleBackToModule = () => {
+    setSelectedSubmodule(null);
   };
 
   // Placeholder when wallet is not connected
@@ -265,7 +288,15 @@ const Modules = () => {
       
       <main className="container max-w-5xl mx-auto pt-24 px-4 pb-16">
         <AnimatePresence mode="wait">
-          {selectedModule ? (
+          {selectedSubmodule ? (
+            // Submodule view
+            <SubmoduleView
+              moduleId={selectedModule!.id}
+              submodule={selectedSubmodule}
+              onBack={handleBackToModule}
+              onComplete={handleSubmoduleComplete}
+            />
+          ) : selectedModule ? (
             // Module detail view
             <motion.div
               key="module-detail"
@@ -413,122 +444,79 @@ const Modules = () => {
                 </div>
                 
                 <div className="p-6 md:p-8">
-                  {/* Sample module content - this would be dynamic in a real app */}
-                  <motion.div 
-                    className="prose dark:prose-invert max-w-none"
+                  <motion.h2 
+                    className="text-2xl font-bold mb-6 flex items-center gap-2"
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
-                    transition={{ delay: 0.7, duration: 0.5 }}
+                    transition={{ delay: 0.7 }}
                   >
-                    <h2>Module Overview</h2>
-                    <p>In this module, you'll learn about the core concepts of {selectedModule.title.toLowerCase()}. We'll cover the fundamental principles, practical applications, and how this technology is shaping the future of finance and digital interactions.</p>
-                    
-                    <motion.div 
-                      initial={{ opacity: 0, x: -20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: 0.9 }}
-                    >
-                      <h3>Learning Objectives</h3>
-                      <ul>
-                        <motion.li 
-                          initial={{ opacity: 0, x: -10 }} 
-                          animate={{ opacity: 1, x: 0 }} 
-                          transition={{ delay: 1.0 }}
-                        >
-                          Understand the key terminology and concepts
-                        </motion.li>
-                        <motion.li 
-                          initial={{ opacity: 0, x: -10 }} 
-                          animate={{ opacity: 1, x: 0 }}
-                          transition={{ delay: 1.1 }}
-                        >
-                          Learn how to apply these principles in real-world scenarios
-                        </motion.li>
-                        <motion.li 
-                          initial={{ opacity: 0, x: -10 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          transition={{ delay: 1.2 }}
-                        >
-                          Explore case studies and examples from the industry
-                        </motion.li>
-                        <motion.li 
-                          initial={{ opacity: 0, x: -10 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          transition={{ delay: 1.3 }}
-                        >
-                          Complete practical exercises to reinforce your knowledge
-                        </motion.li>
-                      </ul>
-                    </motion.div>
-                    
-                    <motion.div
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 1.4 }}
-                    >
-                      <Alert className="my-6">
-                        <AlertCircle className="h-4 w-4" />
-                        <AlertTitle>Important Note</AlertTitle>
-                        <AlertDescription>
-                          This is a prototype experience. In a full implementation, this module would contain interactive lessons, quizzes, and hands-on exercises.
-                        </AlertDescription>
-                      </Alert>
-                    </motion.div>
-                    
-                    <motion.h3
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      transition={{ delay: 1.5 }}
-                    >
-                      Ready to Complete This Module?
-                    </motion.h3>
-                    <motion.p
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      transition={{ delay: 1.6 }}
-                    >
-                      When you feel confident with the material, click the "Complete Module" button below to record your achievement on the EduChain blockchain and receive your rewards.
-                    </motion.p>
-                  </motion.div>
+                    <BookOpen className="h-5 w-5 text-purple-500" />
+                    Learning Submodules
+                  </motion.h2>
                   
                   <motion.div 
-                    className="mt-8 flex flex-col sm:flex-row gap-4"
-                    initial={{ y: 20, opacity: 0 }}
-                    animate={{ y: 0, opacity: 1 }}
-                    transition={{ delay: 1.7 }}
+                    className="grid grid-cols-1 gap-4 mb-8"
+                    variants={containerVariants}
+                    initial="hidden"
+                    animate="visible"
                   >
-                    <Button 
-                      size="lg" 
-                      disabled={selectedModule.completed || completingModule}
-                      onClick={handleCompleteModule}
-                      className="w-full sm:w-auto group"
-                    >
-                      {completingModule ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Processing...
-                        </>
-                      ) : selectedModule.completed ? (
-                        <>
-                          <CheckCircle className="mr-2 h-4 w-4" />
-                          Module Completed
-                        </>
-                      ) : (
-                        <>
-                          <CheckCircle className="mr-2 h-4 w-4 group-hover:scale-110 transition-transform" />
-                          Complete Module
-                        </>
-                      )}
-                    </Button>
-                    
-                    <Button 
-                      variant="outline" 
-                      size="lg" 
-                      onClick={handleBackToModules}
-                      className="w-full sm:w-auto"
-                    >
-                      Explore Other Modules
-                    </Button>
+                    {selectedModule.submodules.map((submodule, index) => (
+                      <motion.div
+                        key={submodule.id}
+                        variants={itemVariants}
+                        whileHover={{ y: -4, boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.1)" }}
+                        className="border rounded-lg p-5 bg-card transition-all cursor-pointer"
+                        onClick={() => handleSubmoduleSelect(submodule)}
+                      >
+                        <div className="flex justify-between items-start">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-2">
+                              {submodule.completed ? (
+                                <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400 flex items-center gap-1">
+                                  <CheckCircle className="h-3 w-3" /> Completed
+                                </span>
+                              ) : (
+                                <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400">
+                                  In Progress
+                                </span>
+                              )}
+                            </div>
+                            <h3 className="text-lg font-semibold mb-2">{submodule.title}</h3>
+                            <p className="text-sm text-muted-foreground mb-4">{submodule.description}</p>
+                            
+                            <div className="flex gap-4 text-sm">
+                              <div className="flex items-center gap-1">
+                                <Zap className="h-4 w-4 text-amber-500" />
+                                <span>{submodule.xpReward} XP</span>
+                              </div>
+                              
+                              <div className="flex items-center gap-1">
+                                <BookOpen className="h-4 w-4 text-blue-500" />
+                                <span>{submodule.quizzes.length} {submodule.quizzes.length === 1 ? 'Quiz' : 'Quizzes'}</span>
+                              </div>
+                            </div>
+                          </div>
+                          
+                          <Button size="sm" variant="outline" className="ml-4 whitespace-nowrap">
+                            Start Learning <ChevronRight className="h-4 w-4 ml-1" />
+                          </Button>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </motion.div>
+                  
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 1.4 }}
+                  >
+                    <Alert className="my-6">
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertTitle>Gamified Learning Experience</AlertTitle>
+                      <AlertDescription>
+                        Complete all submodules and quizzes to earn XP, tokens, and special badges that will be recorded on the EduChain blockchain.
+                      </AlertDescription>
+                    </Alert>
                   </motion.div>
                 </div>
               </motion.div>
