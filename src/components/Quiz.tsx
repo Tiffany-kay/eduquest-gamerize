@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,6 +11,7 @@ import { Progress } from "@/components/ui/progress";
 import { motion, AnimatePresence } from "framer-motion";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import FlipCard from "./FlipCard";
+import { cn } from "@/lib/utils";
 
 interface QuizProps {
   quiz: QuizType;
@@ -105,7 +105,6 @@ const Quiz = ({ quiz, moduleId, submoduleId, onComplete }: QuizProps) => {
     }
   };
 
-  // If showing results screen
   if (results) {
     const passThreshold = Math.ceil(quiz.questions.length * 0.7);
     const passed = results.score >= passThreshold;

@@ -19,6 +19,7 @@ import {
   ArrowLeft, 
   BookOpen, 
   CheckCircle, 
+  ChevronRight,
   Coins, 
   Gift, 
   Loader2, 
