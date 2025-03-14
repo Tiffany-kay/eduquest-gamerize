@@ -19,8 +19,29 @@ const defaultWalletState: Wallet = {
 };
 
 export const useWallet = () => {
-  const [wallet, setWallet] = useState<Wallet>(defaultWalletState);
+  const [wallet, setWallet] = useState<Wallet>(() => {
+    // Try to retrieve wallet state from localStorage on initialization
+    if (typeof window !== "undefined") {
+      const savedWallet = localStorage.getItem("wallet");
+      if (savedWallet) {
+        try {
+          return JSON.parse(savedWallet);
+        } catch (e) {
+          console.error("Error parsing saved wallet:", e);
+        }
+      }
+    }
+    return defaultWalletState;
+  });
+  
   const [isConnecting, setIsConnecting] = useState(false);
+
+  // Save wallet state to localStorage whenever it changes
+  useEffect(() => {
+    if (typeof window !== "undefined" && wallet) {
+      localStorage.setItem("wallet", JSON.stringify(wallet));
+    }
+  }, [wallet]);
 
   // Initialize metamask detection
   useEffect(() => {
@@ -28,6 +49,28 @@ export const useWallet = () => {
       // Check if MetaMask is installed
       if (typeof window.ethereum !== "undefined") {
         console.log("MetaMask is installed!");
+
+        // If we have a saved address but not connected, reconnect automatically
+        if (wallet.address && !wallet.connected) {
+          try {
+            const accounts = await window.ethereum.request({ 
+              method: "eth_accounts" 
+            });
+            
+            if (accounts.length > 0 && accounts[0] === wallet.address) {
+              // User is still connected with the same account
+              const chainId = await window.ethereum.request({ method: "eth_chainId" });
+              
+              setWallet(prev => ({
+                ...prev,
+                connected: true,
+                chainId: parseInt(chainId, 16)
+              }));
+            }
+          } catch (error) {
+            console.error("Error checking accounts:", error);
+          }
+        }
 
         // Listen for account changes
         window.ethereum.on("accountsChanged", (accounts: string[]) => {
@@ -39,7 +82,7 @@ export const useWallet = () => {
             }));
           } else {
             // User disconnected wallet
-            setWallet(defaultWalletState);
+            disconnectWallet();
           }
         });
 
@@ -61,7 +104,7 @@ export const useWallet = () => {
         window.ethereum.removeAllListeners();
       }
     };
-  }, []);
+  }, [wallet.address, wallet.connected]);
 
   // Connect wallet function
   const connectWallet = useCallback(async () => {
@@ -116,6 +159,10 @@ export const useWallet = () => {
 
   const disconnectWallet = useCallback(() => {
     setWallet(defaultWalletState);
+    // Clear from localStorage
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("wallet");
+    }
     toast({
       title: "Wallet disconnected",
       description: "Your wallet has been disconnected",
