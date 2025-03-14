@@ -32,7 +32,7 @@ const FlipCard = ({ frontContent, backContent, className }: FlipCardProps) => {
         className="relative w-full h-full preserve-3d transition-all duration-500"
         initial={false}
         animate={{ rotateY: isFlipped ? 180 : 0 }}
-        transition={{ duration: 0.6, animationDirection: "normal" }}
+        transition={{ duration: 0.4, animationDirection: "normal" }} 
         onAnimationComplete={() => setIsAnimating(false)}
       >
         {/* Front of card */}

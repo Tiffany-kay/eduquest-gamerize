@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -33,12 +34,15 @@ const Quiz = ({ quiz, moduleId, submoduleId, onComplete }: QuizProps) => {
     reward?: { xp: number; tokens: number };
   } | null>(null);
   const [showExplanation, setShowExplanation] = useState(false);
+  const [quizSubmitted, setQuizSubmitted] = useState(false);
 
   const currentQuestion = quiz.questions[currentQuestionIndex];
   const hasAnsweredCurrent = userAnswers[currentQuestionIndex] !== -1;
   const allQuestionsAnswered = userAnswers.every(answer => answer !== -1);
 
   const handleAnswerSelect = (value: string) => {
+    if (quizSubmitted) return; // Prevent changing answers after submission
+    
     const newAnswers = [...userAnswers];
     newAnswers[currentQuestionIndex] = parseInt(value);
     setUserAnswers(newAnswers);
@@ -78,6 +82,8 @@ const Quiz = ({ quiz, moduleId, submoduleId, onComplete }: QuizProps) => {
         userAnswers
       );
 
+      setQuizSubmitted(true);
+      
       if (result.answers) {
         setResults({
           correct: result.answers.correct,
@@ -100,8 +106,30 @@ const Quiz = ({ quiz, moduleId, submoduleId, onComplete }: QuizProps) => {
         description: "Failed to submit quiz. Please try again.",
         variant: "destructive",
       });
+      setQuizSubmitted(false);
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleCheckAnswer = () => {
+    if (quizSubmitted) {
+      setShowExplanation(true);
+    } else {
+      toast({
+        title: "Submit quiz first",
+        description: "Please submit your quiz before checking answers",
+      });
+    }
+  };
+
+  const handleRetakeQuiz = () => {
+    if (quizSubmitted) {
+      setUserAnswers(Array(quiz.questions.length).fill(-1));
+      setCurrentQuestionIndex(0);
+      setResults(null);
+      setShowExplanation(false);
+      setQuizSubmitted(false);
     }
   };
 
@@ -275,11 +303,7 @@ const Quiz = ({ quiz, moduleId, submoduleId, onComplete }: QuizProps) => {
           <CardFooter>
             <Button
               className="w-full"
-              onClick={() => {
-                setResults(null);
-                setCurrentQuestionIndex(0);
-                setUserAnswers(Array(quiz.questions.length).fill(-1));
-              }}
+              onClick={handleRetakeQuiz}
             >
               Try Again
             </Button>
@@ -374,6 +398,7 @@ const Quiz = ({ quiz, moduleId, submoduleId, onComplete }: QuizProps) => {
                   }
                   onValueChange={handleAnswerSelect}
                   className="space-y-3"
+                  disabled={quizSubmitted}
                 >
                   {currentQuestion.options.map((option, idx) => (
                     <div
@@ -381,11 +406,12 @@ const Quiz = ({ quiz, moduleId, submoduleId, onComplete }: QuizProps) => {
                       className={cn(
                         "flex items-center space-x-2 rounded-md border p-3 transition-colors",
                         userAnswers[currentQuestionIndex] === idx &&
-                          "bg-primary/10 border-primary/30"
+                          "bg-primary/10 border-primary/30",
+                        quizSubmitted && "opacity-80"
                       )}
                     >
-                      <RadioGroupItem value={idx.toString()} id={`option-${idx}`} />
-                      <Label htmlFor={`option-${idx}`} className="flex-1 cursor-pointer">
+                      <RadioGroupItem value={idx.toString()} id={`option-${idx}`} disabled={quizSubmitted} />
+                      <Label htmlFor={`option-${idx}`} className={cn("flex-1", quizSubmitted ? "cursor-not-allowed" : "cursor-pointer")}>
                         {option}
                       </Label>
                     </div>
@@ -402,9 +428,9 @@ const Quiz = ({ quiz, moduleId, submoduleId, onComplete }: QuizProps) => {
                 </Button>
                 {currentQuestionIndex === quiz.questions.length - 1 ? (
                   <Button
-                    onClick={() => setShowExplanation(true)}
+                    onClick={handleCheckAnswer}
                     variant="outline"
-                    disabled={!hasAnsweredCurrent}
+                    disabled={!hasAnsweredCurrent || !quizSubmitted}
                   >
                     Check Answer
                   </Button>
@@ -443,19 +469,29 @@ const Quiz = ({ quiz, moduleId, submoduleId, onComplete }: QuizProps) => {
           ))}
         </div>
 
-        <Button
-          onClick={handleSubmitQuiz}
-          disabled={!allQuestionsAnswered || isSubmitting}
-          className="px-6"
-        >
-          {isSubmitting ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Submitting...
-            </>
-          ) : (
-            "Submit Quiz"
-          )}
-        </Button>
+        {quizSubmitted ? (
+          <Button
+            onClick={handleRetakeQuiz}
+            variant="outline"
+            className="px-6"
+          >
+            Retake Quiz
+          </Button>
+        ) : (
+          <Button
+            onClick={handleSubmitQuiz}
+            disabled={!allQuestionsAnswered || isSubmitting}
+            className="px-6"
+          >
+            {isSubmitting ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Submitting...
+              </>
+            ) : (
+              "Submit Quiz"
+            )}
+          </Button>
+        )}
       </div>
     </motion.div>
   );
