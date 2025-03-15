@@ -146,13 +146,8 @@ const Index = () => {
       <footer className="relative z-10 bg-card border-t px-4 py-8">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between">
           <p className="text-sm text-muted-foreground">
-            © 2023 EduQuest. All rights reserved.
+            © 2025 EduQuest. All rights reserved.
           </p>
-          <div className="flex items-center gap-6 mt-4 md:mt-0">
-            <a href="#" className="text-sm text-muted-foreground hover:text-foreground">Terms</a>
-            <a href="#" className="text-sm text-muted-foreground hover:text-foreground">Privacy</a>
-            <a href="#" className="text-sm text-muted-foreground hover:text-foreground">Contact</a>
-          </div>
         </div>
       </footer>
     </div>
